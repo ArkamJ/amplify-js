@@ -257,6 +257,16 @@ class IndexedDBAdapter implements Adapter {
 
 			// It is me
 			if (id === model.id) {
+				// Check if any of the fields is Blob
+				const fields = Object.keys(item);
+				for (const field of fields) {
+					if (field === 'Blob') {
+						console.log(item.Blob);
+						// If blob is a File create store and add file there
+						if (item.Blob instanceof File) {
+						}
+					}
+				}
 				const key = await store.index('byId').getKey(item.id);
 				await store.put(item, key);
 
