@@ -270,20 +270,38 @@ class IndexedDBAdapter implements Adapter {
 						console.log(item.Blob);
 						// If blob is a File create store and add file there
 						if (item.Blob instanceof File) {
-							// TODO: Check if store already exists
+							const STORE_NAME = `Complex-Objects-${storeName}`;
+							// Check if store already exists
+							for (const store of tx.objectStoreNames) {
+								if (store === STORE_NAME) {
+									// TODO: Add Blob to existing Complex Objects Store
+								}
+							}
 
 							// Else create Complex Objects store for model
 							console.log('creating store');
-							const STORE_NAME = `Complex-Objects-${storeName}`;
 							this.db = await idb.openDB(DB_NAME, 2, {
 								upgrade: async (db, oldVersion, newVersion, txn) => {
-									const newStore = this.db.createObjectStore(STORE_NAME, {
-										keyPath: undefined,
-										autoIncrement: true,
-									});
+									if (oldVersion === 1 && newVersion === 2) {
+										try {
+											const newStore = this.db.createObjectStore(STORE_NAME, {
+												keyPath: undefined,
+												autoIncrement: true,
+											});
 
-									newStore.createIndex('byId', 'id', { unique: true });
-									newStore.put(item.Blob, key);
+											newStore.createIndex('byId', 'id', { unique: true });
+											newStore.put(item.Blob, key);
+										} catch (error) {
+											logger.error(
+												'Error in creating Complex Objects Store',
+												error
+											);
+											txn.abort();
+											throw error;
+										}
+
+										return;
+									}
 								},
 							});
 						}
