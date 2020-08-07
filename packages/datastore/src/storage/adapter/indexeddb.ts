@@ -226,6 +226,9 @@ class IndexedDBAdapter implements Adapter {
 		);
 		const store = tx.objectStore(storeName);
 
+		console.log('This is store');
+		console.log(store);
+
 		const fromDB = await this._get(store, model.id);
 
 		if (condition && fromDB) {
@@ -257,6 +260,9 @@ class IndexedDBAdapter implements Adapter {
 
 			// It is me
 			if (id === model.id) {
+				const key = await store.index('byId').getKey(item.id);
+				await store.put(item, key);
+
 				// Check if any of the fields is Blob
 				const fields = Object.keys(item);
 				for (const field of fields) {
@@ -264,11 +270,25 @@ class IndexedDBAdapter implements Adapter {
 						console.log(item.Blob);
 						// If blob is a File create store and add file there
 						if (item.Blob instanceof File) {
+							// TODO: Check if store already exists
+
+							// Else create Complex Objects store for model
+							console.log('creating store');
+							const STORE_NAME = `Complex-Objects-${storeName}`;
+							this.db = await idb.openDB(DB_NAME, 2, {
+								upgrade: async (db, oldVersion, newVersion, txn) => {
+									const newStore = this.db.createObjectStore(STORE_NAME, {
+										keyPath: undefined,
+										autoIncrement: true,
+									});
+
+									newStore.createIndex('byId', 'id', { unique: true });
+									newStore.put(item.Blob, key);
+								},
+							});
 						}
 					}
 				}
-				const key = await store.index('byId').getKey(item.id);
-				await store.put(item, key);
 
 				result.push([instance, opType]);
 			} else {
