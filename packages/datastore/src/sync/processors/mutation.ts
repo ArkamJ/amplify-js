@@ -31,7 +31,11 @@ import {
 	TransformerMutationType,
 } from '../utils';
 import { Storage as storageCategory } from '@aws-amplify/storage';
-import { isEmpty } from '../ComplexObjUtils';
+import {
+	isEmpty,
+	getGlobalUpdateVariable,
+	resetGlobalUpdateVariable,
+} from '../ComplexObjUtils';
 
 const MAX_ATTEMPTS = 10;
 
@@ -132,13 +136,21 @@ class MutationProcessor {
 			// TODO: Throw error if file > 50mb
 			if (!isEmpty(complexObjects)) {
 				for (const { file, s3Key, eTag } of complexObjects) {
-					if (
-						operation === TransformerMutationType.CREATE ||
-						operation === TransformerMutationType.UPDATE
-					) {
+					if (operation === TransformerMutationType.CREATE) {
 						await storageCategory.put(s3Key, file, {
 							contentType: file.type,
 						});
+					} else if (operation === TransformerMutationType.UPDATE) {
+						const { remove, put } = getGlobalUpdateVariable();
+						for (const { key, file } of put) {
+							await storageCategory.put(key, file, {
+								contentType: file.type,
+							});
+						}
+						for (const removeKey of remove) {
+							await storageCategory.remove(removeKey);
+						}
+						resetGlobalUpdateVariable();
 					} else if (operation === TransformerMutationType.DELETE) {
 						await storageCategory.remove(s3Key);
 					}
@@ -174,6 +186,7 @@ class MutationProcessor {
 			}
 
 			const record = result.data[opName];
+
 			await this.outbox.dequeue(this.storage);
 
 			const hasMore = (await this.outbox.peek(this.storage)) !== undefined;

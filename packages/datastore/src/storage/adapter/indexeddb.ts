@@ -27,6 +27,11 @@ import {
 } from '../../util';
 import { Adapter } from './index';
 import { tsIndexSignature } from '@babel/types';
+import {
+	getComplexObjects,
+	isEmpty,
+	updateGlobalUpdateVariable,
+} from '../../sync/ComplexObjUtils';
 
 const logger = new Logger('DataStore');
 
@@ -254,17 +259,37 @@ class IndexedDBAdapter implements Adapter {
 				(await this._get(store, id)) === undefined
 					? OpType.INSERT
 					: OpType.UPDATE;
-			//console.log('into the IDB');
-			//console.log(item);
-			//const modelName = storeName.split('_')[1];
-			//const newItem = prepareLocalFile(item, modelName);
-			//console.log(newItem);
 			// It is me
 			if (id === model.id) {
-				const key = await store.index('byId').getKey(item.id);
+				const index = await store.index('byId');
+				const key = await index.getKey(item.id);
+				const old = await index.get(item.id);
 				await store.put(item, key);
 
 				result.push([instance, opType]);
+				if (opType === OpType.UPDATE) {
+					const modelName = storeName.split('_')[1];
+					const oldComplexObjects = await getComplexObjects(old, modelName);
+					const newComplexObjects = await getComplexObjects(item, modelName);
+					let i;
+					let remove = [];
+					let put = [];
+					for (i = 0; i < oldComplexObjects.length; i++) {
+						const {
+							file: newFile,
+							s3Key: newS3Key,
+							eTag: newEtag,
+						} = newComplexObjects[i];
+						const { s3Key: oldS3Key, eTag: oldEtag } = oldComplexObjects[i];
+						if (newEtag !== oldEtag) {
+							remove.push(oldS3Key);
+							put.push({ key: newS3Key, file: newFile });
+						}
+					}
+					if (!isEmpty(remove) || !isEmpty(put)) {
+						updateGlobalUpdateVariable(remove, put);
+					}
+				}
 			} else {
 				if (opType === OpType.INSERT) {
 					// Even if the parent is an INSERT, the child might not be, so we need to get its key

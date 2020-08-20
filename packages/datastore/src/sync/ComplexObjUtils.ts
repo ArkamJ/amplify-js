@@ -5,6 +5,21 @@ import { Storage as storageCategory } from '@aws-amplify/storage';
 import CryptoJS from 'crypto-js/core';
 import md5 from 'crypto-js/md5';
 
+let Global_Update_Variable = { remove: [], put: [] };
+
+export function getGlobalUpdateVariable() {
+	return Global_Update_Variable;
+}
+
+export function updateGlobalUpdateVariable(remove, put) {
+	Global_Update_Variable['remove'].push(...remove);
+	Global_Update_Variable['put'].push(...put);
+}
+
+export function resetGlobalUpdateVariable() {
+	Global_Update_Variable = { remove: [], put: [] };
+}
+
 function tryParseJSON(jsonString) {
 	try {
 		let o = JSON.parse(jsonString);
@@ -93,7 +108,7 @@ async function checkForUpdate(cloudObject, complexObjects) {
 	}
 }
 
-async function getComplexObjects(
+export async function getComplexObjects(
 	object: PersistentModel,
 	model: string
 ): Promise<Array<ComplexObject>> {
