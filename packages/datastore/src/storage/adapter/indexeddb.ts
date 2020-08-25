@@ -226,6 +226,9 @@ class IndexedDBAdapter implements Adapter {
 		);
 		const store = tx.objectStore(storeName);
 
+		console.log('This is store');
+		console.log(store);
+
 		const fromDB = await this._get(store, model.id);
 
 		if (condition && fromDB) {
@@ -263,6 +266,51 @@ class IndexedDBAdapter implements Adapter {
 			if (id === model.id) {
 				const key = await store.index('byId').getKey(item.id);
 				await store.put(item, key);
+
+				// Check if any of the fields is Blob
+				const fields = Object.keys(item);
+				for (const field of fields) {
+					if (field === 'Blob') {
+						console.log(item.Blob);
+						// If blob is a File create store and add file there
+						if (item.Blob instanceof File) {
+							const STORE_NAME = `Complex-Objects-${storeName}`;
+							// Check if store already exists
+							for (const store of tx.objectStoreNames) {
+								if (store === STORE_NAME) {
+									// TODO: Add Blob to existing Complex Objects Store
+								}
+							}
+
+							// Else create Complex Objects store for model
+							console.log('creating store');
+							this.db = await idb.openDB(DB_NAME, 2, {
+								upgrade: async (db, oldVersion, newVersion, txn) => {
+									if (oldVersion === 1 && newVersion === 2) {
+										try {
+											const newStore = this.db.createObjectStore(STORE_NAME, {
+												keyPath: undefined,
+												autoIncrement: true,
+											});
+
+											newStore.createIndex('byId', 'id', { unique: true });
+											newStore.put(item.Blob, key);
+										} catch (error) {
+											logger.error(
+												'Error in creating Complex Objects Store',
+												error
+											);
+											txn.abort();
+											throw error;
+										}
+
+										return;
+									}
+								},
+							});
+						}
+					}
+				}
 
 				result.push([instance, opType]);
 			} else {
