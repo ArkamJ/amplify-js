@@ -13,7 +13,7 @@ executors:
 
   js-test-executor:
     docker:
-      - image: cypress/base:12
+      - image: cypress/included:4.12.1
       - image: verdaccio/verdaccio
     resource_class: large
 
@@ -304,7 +304,7 @@ commands:
             JEST_JUNIT_OUTPUT_NAME: 'detox-test-results.xml'
           name: Detox Test
           command: |
-            ~/amplify-js/.circleci/retry-yarn-script.sh -s 'detox test -c android.emu.debug -u' 3
+            ~/amplify-js/.circleci/retry-yarn-script.sh -s 'detox test -c android.emu.debug -u' -n 3
       - store_test_results:
           path: reports/junit
       - store_artifacts:
@@ -319,6 +319,10 @@ jobs:
       - run: yarn --frozen-lockfile
       - run: yarn run bootstrap
       - run: yarn run build
+      - save_cache:
+          key: amplify-ssh-deps-{{ .Branch }}
+          paths:
+            - ~/.ssh
       - persist_to_workspace:
           root: /root
           paths:
@@ -359,40 +363,40 @@ jobs:
   integ_react_auth:
     executor: js-test-executor
     <<: *test_env_vars
-    working_directory: ~/amplify-js-samples-staging/samples/react/auth/with-authenticator
+    working_directory: ~/amplify-js-samples-staging/samples/react/auth/with-authenticator-legacy
     steps:
       - prepare_test_env
       - integ_test_js:
           test_name: 'React Authenticator'
           framework: react
           category: auth
-          sample_name: with-authenticator
+          sample_name: with-authenticator-legacy
           spec: authenticator
 
   integ_angular_auth:
     executor: js-test-executor
     <<: *test_env_vars
-    working_directory: ~/amplify-js-samples-staging/samples/angular/auth/amplify-authenticator
+    working_directory: ~/amplify-js-samples-staging/samples/angular/auth/amplify-authenticator-legacy
     steps:
       - prepare_test_env
       - integ_test_js:
           test_name: 'Angular Authenticator'
           framework: angular
           category: auth
-          sample_name: amplify-authenticator
+          sample_name: amplify-authenticator-legacy
           spec: authenticator
 
   integ_vue_auth:
     executor: js-test-executor
     <<: *test_env_vars
-    working_directory: ~/amplify-js-samples-staging/samples/vue/auth/amplify-authenticator
+    working_directory: ~/amplify-js-samples-staging/samples/vue/auth/amplify-authenticator-legacy
     steps:
       - prepare_test_env
       - integ_test_js:
           test_name: 'Vue Authenticator'
           framework: vue
           category: auth
-          sample_name: amplify-authenticator
+          sample_name: amplify-authenticator-legacy
           spec: authenticator
 
   integ_react_predictions:
@@ -445,6 +449,18 @@ jobs:
           category: storage
           sample_name: storageComp
           spec: storage-comp
+
+  integ_amazon_cognito_identity_js:
+    executor: js-test-executor
+    <<: *test_env_vars
+    working_directory: ~/amplify-js-samples-staging/samples/react/auth/amazon-cognito-identity-js
+    steps:
+      - prepare_test_env
+      - integ_test_js:
+          test_name: 'amazon-cognito-identity-js'
+          framework: react
+          category: auth
+          sample_name: amazon-cognito-identity-js
 
   integ_setup_ui:
     executor: build-executor
@@ -581,6 +597,10 @@ jobs:
     steps:
       - attach_workspace:
           at: /root
+      - restore_cache:
+          keys:
+            - amplify-ssh-deps-{{ .Branch }}
+            - amplify-ssh-deps
       - run:
           name: 'Post-release steps'
           command: |
@@ -656,6 +676,12 @@ workflows:
             - build
           filters:
             <<: *releasable_branches
+      - integ_amazon_cognito_identity_js:
+          requires:
+            - integ_setup
+            - build
+          filters:
+            <<: *releasable_branches
       - integ_rn_ios_storage:
           requires:
             - integ_setup
@@ -701,6 +727,7 @@ workflows:
             - integ_react_datastore
             - integ_react_storage
             - integ_react_storage_ui
+            - integ_amazon_cognito_identity_js
             - integ_react_auth
             - integ_angular_auth
             - integ_vue_auth
